@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SquadSync — Team Attendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #C9A84C;
+    --gold-light: #E8C96A;
+    --gold-dim: #8A6C2A;
+    --gold-glow: rgba(201,168,76,0.18);
+    --black: #0A0A0A;
+    --black-2: #111111;
+    --black-3: #181818;
+    --black-4: #222222;
+    --black-5: #2A2A2A;
+    --white: #F5F0E8;
+    --white-dim: rgba(245,240,232,0.55);
+    --white-faint: rgba(245,240,232,0.12);
+    --red: #C0392B;
+    --green: #27AE60;
+    --green-dim: rgba(39,174,96,0.18);
+    --red-dim: rgba(192,57,43,0.18);
+    --amber: #E67E22;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 4px 32px rgba(0,0,0,0.7);
+    --border: 1px solid rgba(201,168,76,0.18);
+    --border-bright: 1px solid rgba(201,168,76,0.55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'Barlow', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── NOISE OVERLAY ─── */
+  body::before {
+    content:'';
+    position:fixed;
+    inset:0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events:none;
+    z-index:9999;
+    opacity:0.4;
+  }
+
+  /* ─── LAYOUT ─── */
+  #app { min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* ─── HEADER ─── */
+  header {
+    background: linear-gradient(180deg, #0d0d0d 0%, var(--black) 100%);
+    border-bottom: var(--border-bright);
+    padding: 0 20px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 62px;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.9rem;
+    letter-spacing: 3px;
+    color: var(--gold);
+    text-shadow: 0 0 20px rgba(201,168,76,0.4);
+    line-height: 1;
+  }
+  .logo span { color: var(--white); }
+
+  .mode-badge {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--gold-dim);
+    color: var(--gold);
+    background: rgba(201,168,76,0.08);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mode-badge:hover { background: rgba(201,168,76,0.18); border-color: var(--gold); }
+  .mode-badge.coach { color: var(--gold-light); border-color: var(--gold); background: rgba(201,168,76,0.14); }
+
+  /* ─── LANDING / MODE SELECT ─── */
+  .screen { display: none; flex-direction: column; flex: 1; }
+  .screen.active { display: flex; }
+
+  .landing {
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 62px);
+    padding: 40px 20px;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 70%);
+  }
+
+  .landing-inner { max-width: 420px; width: 100%; text-align: center; }
+
+  .shield {
+    width: 100px; height: 100px;
+    margin: 0 auto 28px;
+    background: linear-gradient(145deg, var(--black-4), var(--black-3));
+    border: 2px solid var(--gold);
+    border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2.6rem;
+    box-shadow: 0 0 40px rgba(201,168,76,0.2), inset 0 1px 0 rgba(201,168,76,0.15);
+    animation: shieldPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes shieldPulse {
+    0%,100% { box-shadow: 0 0 40px rgba(201,168,76,0.2), inset 0 1px 0 rgba(201,168,76,0.15); }
+    50% { box-shadow: 0 0 60px rgba(201,168,76,0.35), inset 0 1px 0 rgba(201,168,76,0.2); }
+  }
+
+  .landing-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 3.2rem;
+    letter-spacing: 4px;
+    color: var(--white);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .landing-title span { color: var(--gold); }
+
+  .landing-sub {
+    font-size: 0.9rem;
+    color: var(--white-dim);
+    letter-spacing: 1px;
+    margin-bottom: 44px;
+    font-weight: 300;
+  }
+
+  .mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .mode-card {
+    background: var(--black-3);
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 28px 16px 22px;
+    cursor: pointer;
+    transition: all 0.25s;
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+  }
+  .mode-card::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 60%, var(--gold-glow));
+    opacity: 0; transition: opacity 0.25s;
+  }
+  .mode-card:hover { border-color: var(--gold); transform: translateY(-3px); box-shadow: 0 12px 40px rgba(201,168,76,0.15); }
+  .mode-card:hover::before { opacity: 1; }
+
+  .mode-card .icon { font-size: 2.4rem; margin-bottom: 12px; display: block; }
+  .mode-card .mc-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.4rem;
+    letter-spacing: 2px;
+    color: var(--gold);
+    margin-bottom: 6px;
+  }
+  .mode-card .mc-desc { font-size: 0.78rem; color: var(--white-dim); line-height: 1.4; }
+
+  /* ─── PIN MODAL ─── */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 200;
+    align-items: center; justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.active { display: flex; }
+
+  .modal {
+    background: var(--black-3);
+    border: var(--border-bright);
+    border-radius: var(--radius);
+    padding: 32px 28px;
+    width: 100%; max-width: 360px;
+    box-shadow: var(--shadow);
+    animation: modalIn 0.25s ease;
+  }
+  @keyframes modalIn { from { transform: scale(0.93) translateY(12px); opacity: 0; } }
+
+  .modal h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.6rem;
+    letter-spacing: 2px;
+    color: var(--gold);
+    margin-bottom: 6px;
+  }
+  .modal p { font-size: 0.83rem; color: var(--white-dim); margin-bottom: 22px; }
+
+  .pin-dots { display: flex; gap: 10px; justify-content: center; margin-bottom: 22px; }
+  .pin-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--gold-dim);
+    background: transparent;
+    transition: all 0.15s;
+  }
+  .pin-dot.filled { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 8px rgba(201,168,76,0.5); }
+
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pin-btn {
+    background: var(--black-4);
+    border: var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--white);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    letter-spacing: 1px;
+    height: 54px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .pin-btn:hover { background: var(--black-5); border-color: var(--gold); color: var(--gold); }
+  .pin-btn:active { transform: scale(0.95); }
+  .pin-btn.del { color: var(--gold-dim); font-size: 1.1rem; }
+  .pin-btn.confirm { grid-column: 1/-1; background: var(--gold); color: var(--black); font-size: 1.1rem; border-color: transparent; }
+  .pin-btn.confirm:hover { background: var(--gold-light); }
+
+  .pin-error { color: var(--red); font-size: 0.8rem; text-align: center; margin-top: 10px; min-height: 18px; }
+
+  .modal-cancel {
+    width: 100%; margin-top: 12px;
+    background: transparent; border: var(--border);
+    color: var(--white-dim);
+    border-radius: var(--radius-sm);
+    height: 40px; cursor: pointer;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.85rem; letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+  .modal-cancel:hover { border-color: var(--white-dim); color: var(--white); }
+
+  /* ─── TABS ─── */
+  .tabs {
+    display: flex;
+    border-bottom: var(--border);
+    background: var(--black-2);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    padding: 14px 20px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--white-dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+  .tab:hover { color: var(--white); }
+
+  /* ─── CONTENT AREA ─── */
+  .content { flex: 1; padding: 24px 20px; max-width: 700px; width: 100%; margin: 0 auto; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ─── SECTION HEADERS ─── */
+  .sec-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 18px;
+    flex-wrap: wrap; gap: 10px;
+  }
+  .sec-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    letter-spacing: 2px;
+    color: var(--gold);
+  }
+  .sec-sub { font-size: 0.8rem; color: var(--white-dim); margin-top: 2px; }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+  }
+  .btn-gold { background: var(--gold); color: var(--black); }
+  .btn-gold:hover { background: var(--gold-light); transform: translateY(-1px); }
+  .btn-outline { background: transparent; border: var(--border-bright); color: var(--gold); }
+  .btn-outline:hover { background: var(--gold-glow); }
+  .btn-danger { background: transparent; border: 1px solid rgba(192,57,43,0.4); color: var(--red); }
+  .btn-danger:hover { background: var(--red-dim); }
+  .btn-sm { padding: 7px 13px; font-size: 0.77rem; }
+
+  /* ─── FORM ELEMENTS ─── */
+  .form-group { margin-bottom: 16px; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--gold-dim); margin-bottom: 6px; }
+
+  input, select, textarea {
+    width: 100%;
+    background: var(--black-4);
+    border: var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--white);
+    font-family: 'Barlow', sans-serif;
+    font-size: 0.92rem;
+    padding: 11px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--gold); }
+  select option { background: var(--black-3); }
+  input::placeholder { color: rgba(245,240,232,0.25); }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media(max-width:420px){ .form-row { grid-template-columns: 1fr; } }
+
+  /* ─── CARDS ─── */
+  .card {
+    background: var(--black-3);
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 12px;
+    transition: border-color 0.2s;
+    position: relative;
+  }
+  .card:hover { border-color: rgba(201,168,76,0.3); }
+
+  .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .card-title { font-family: 'Barlow Condensed', sans-serif; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.5px; }
+  .card-meta { font-size: 0.78rem; color: var(--white-dim); margin-top: 3px; }
+  .card-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* ─── GAME CARD ─── */
+  .game-card {
+    background: linear-gradient(135deg, var(--black-3) 0%, #161610 100%);
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 14px;
+    cursor: pointer;
+    transition: all 0.22s;
+    position: relative;
+    overflow: hidden;
+  }
+  .game-card::before {
+    content:'';
+    position:absolute; left:0; top:0; bottom:0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--gold), var(--gold-dim));
+    border-radius: 2px 0 0 2px;
+  }
+  .game-card:hover { border-color: rgba(201,168,76,0.4); transform: translateX(3px); box-shadow: 0 6px 30px rgba(0,0,0,0.4); }
+
+  .game-date-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--gold-glow);
+    border: 1px solid rgba(201,168,76,0.25);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--gold);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .game-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.35rem; letter-spacing: 1.5px; margin-bottom: 6px; }
+  .game-info { display: flex; gap: 14px; flex-wrap: wrap; }
+  .game-info-item { font-size: 0.78rem; color: var(--white-dim); display: flex; align-items: center; gap: 4px; }
+
+  .attendance-bar { margin-top: 14px; }
+  .att-label { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 5px; }
+  .att-label span:first-child { color: var(--white-dim); }
+  .att-label span:last-child { color: var(--gold); font-weight: 600; }
+  .att-track { background: var(--black-5); border-radius: 3px; height: 5px; overflow: hidden; }
+  .att-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); transition: width 0.5s ease; }
+
+  /* ─── PLAYER CHIP ─── */
+  .player-list { display: flex; flex-direction: column; gap: 8px; }
+  .player-item {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--black-4);
+    border: var(--border);
+    border-radius: var(--radius-sm);
+    padding: 11px 14px;
+  }
+  .player-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold-dim), var(--black-5));
+    border: 1px solid rgba(201,168,76,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.9rem;
+    color: var(--gold);
+    flex-shrink: 0;
+  }
+  .player-info { flex: 1; min-width: 0; }
+  .player-name { font-weight: 600; font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .player-pos { font-size: 0.73rem; color: var(--white-dim); }
+  .player-status { flex-shrink: 0; }
+
+  .status-pill {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 12px;
+  }
+  .status-in { background: var(--green-dim); color: #4fc87a; border: 1px solid rgba(39,174,96,0.35); }
+  .status-out { background: var(--red-dim); color: #e05c4b; border: 1px solid rgba(192,57,43,0.35); }
+  .status-pending { background: rgba(230,126,34,0.15); color: #f0a050; border: 1px solid rgba(230,126,34,0.3); }
+  .status-host { background: rgba(201,168,76,0.15); color: var(--gold); border: 1px solid rgba(201,168,76,0.4); }
+
+  /* ─── ATTENDANCE DETAIL VIEW ─── */
+  .back-btn {
+    display: flex; align-items: center; gap: 7px;
+    background: none; border: none;
+    color: var(--white-dim); font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.85rem; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; cursor: pointer;
+    margin-bottom: 20px; padding: 0;
+    transition: color 0.2s;
+  }
+  .back-btn:hover { color: var(--gold); }
+
+  .game-detail-header {
+    background: linear-gradient(135deg, var(--black-3), #16160e);
+    border: var(--border-bright);
+    border-radius: var(--radius);
+    padding: 22px;
+    margin-bottom: 22px;
+  }
+  .game-detail-title { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 2px; color: var(--gold); }
+  .game-detail-meta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; }
+  .gdm-item { font-size: 0.82rem; color: var(--white-dim); display: flex; align-items: center; gap: 5px; }
+
+  /* ─── STATS ROW ─── */
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px; }
+  .stat-box {
+    background: var(--black-3);
+    border: var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .stat-num { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--gold); line-height: 1; }
+  .stat-lbl { font-size: 0.7rem; color: var(--white-dim); margin-top: 2px; letter-spacing: 0.5px; text-transform: uppercase; }
+
+  /* ─── TOAST ─── */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--black-3); border: var(--border-bright);
+    border-radius: var(--radius-sm); padding: 12px 22px;
+    font-size: 0.85rem; font-weight: 600;
+    box-shadow: var(--shadow);
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    z-index: 9000; opacity: 0; white-space: nowrap;
+    max-width: calc(100vw - 40px);
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #toast.success { color: #4fc87a; border-color: rgba(39,174,96,0.4); }
+  #toast.error { color: #e05c4b; border-color: rgba(192,57,43,0.4); }
+  #toast.info { color: var(--gold); }
+
+  /* ─── EMPTY STATE ─── */
+  .empty {
+    text-align: center; padding: 48px 20px;
+    color: var(--white-dim);
+  }
+  .empty .empty-icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4; }
+  .empty p { font-size: 0.88rem; }
+
+  /* ─── HOST BADGE ─── */
+  .host-crown { font-size: 0.8rem; margin-left: 4px; }
+
+  /* ─── DIVIDER ─── */
+  .divider {
+    border: none; border-top: var(--border);
+    margin: 20px 0;
+  }
+
+  /* ─── AVAILABILITY BUTTONS (player mode) ─── */
+  .avail-btns { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .avail-btn {
+    flex: 1; min-width: 100px;
+    padding: 12px 10px;
+    border-radius: var(--radius-sm);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.88rem; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer; border: 2px solid transparent;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .avail-btn.in { background: var(--green-dim); color: #4fc87a; border-color: rgba(39,174,96,0.25); }
+  .avail-btn.in:hover, .avail-btn.in.selected { background: rgba(39,174,96,0.28); border-color: #4fc87a; box-shadow: 0 0 12px rgba(39,174,96,0.2); }
+  .avail-btn.out { background: var(--red-dim); color: #e05c4b; border-color: rgba(192,57,43,0.25); }
+  .avail-btn.out:hover, .avail-btn.out.selected { background: rgba(192,57,43,0.28); border-color: #e05c4b; }
+  .avail-btn.maybe { background: rgba(230,126,34,0.12); color: #f0a050; border-color: rgba(230,126,34,0.22); }
+  .avail-btn.maybe:hover, .avail-btn.maybe.selected { background: rgba(230,126,34,0.24); border-color: #f0a050; }
+
+  /* ─── SCROLLBAR ─── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--black-2); }
+  ::-webkit-scrollbar-thumb { background: var(--black-5); border-radius: 3px; }
+
+  /* ─── RESPONSIVE ─── */
+  @media(max-width:500px){
+    .stats-row { grid-template-columns: repeat(3,1fr); }
+    .mode-cards { grid-template-columns: 1fr 1fr; }
+    .content { padding: 18px 14px; }
+  }
+  @media(max-width:340px){
+    .mode-cards { grid-template-columns: 1fr; }
+  }
+
+  /* ─── COACH PLAYER SELECT ─── */
+  .player-select-grid { display: flex; flex-direction: column; gap: 7px; max-height: 260px; overflow-y: auto; }
+  .player-select-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--black-4); border: var(--border);
+    border-radius: var(--radius-sm); padding: 9px 13px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .player-select-item:hover { border-color: rgba(201,168,76,0.35); }
+  .player-select-item.selected { border-color: var(--gold); background: var(--gold-glow); }
+  .player-select-item input[type="checkbox"] {
+    width: 16px; height: 16px; accent-color: var(--gold);
+    flex-shrink: 0; cursor: pointer;
+  }
+
+  /* ─── INLINE FORM CARD ─── */
+  .form-card {
+    background: var(--black-3);
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 22px;
+    margin-bottom: 22px;
+  }
+  .form-card-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.2rem; letter-spacing: 2px; color: var(--gold);
+    margin-bottom: 18px;
+  }
+
+  /* ─── HOST SELECTOR ─── */
+  .host-selector {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 8px;
+  }
+  .host-chip {
+    padding: 6px 13px; border-radius: 20px;
+    background: var(--black-4); border: var(--border);
+    font-size: 0.8rem; cursor: pointer; transition: all 0.15s;
+    font-family: 'Barlow Condensed', sans-serif; letter-spacing: 0.5px;
+  }
+  .host-chip:hover { border-color: var(--gold-dim); }
+  .host-chip.selected { background: rgba(201,168,76,0.15); border-color: var(--gold); color: var(--gold); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="logo">Squad<span>Sync</span></div>
+    <div id="modeBadge" class="mode-badge" onclick="showLanding()">⚽ Switch Mode</div>
+  </header>
+
+  <!-- ═══ LANDING SCREEN ═══ -->
+  <div id="screenLanding" class="screen active landing">
+    <div class="landing-inner">
+      <div class="shield">⚽</div>
+      <div class="landing-title">Squad<span>Sync</span></div>
+      <div class="landing-sub">Team Attendance &amp; Match Management</div>
+      <div class="mode-cards">
+        <div class="mode-card" onclick="enterPlayer()">
+          <span class="icon">🏃</span>
+          <div class="mc-title">Player</div>
+          <div class="mc-desc">View matches &amp; submit your availability</div>
+        </div>
+        <div class="mode-card" onclick="enterCoach()">
+          <span class="icon">📋</span>
+          <div class="mc-title">Coach</div>
+          <div class="mc-desc">Manage squad, games &amp; attendance</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PLAYER SELECT MODAL ═══ -->
+  <div id="playerSelectModal" class="modal-overlay">
+    <div class="modal">
+      <h3>Select Your Profile</h3>
+      <p>Choose your name from the squad roster.</p>
+      <div class="form-group">
+        <select id="playerSelectDropdown">
+          <option value="">-- Select Player --</option>
+        </select>
+      </div>
+      <button class="btn btn-gold" style="width:100%" onclick="confirmPlayerSelect()">Enter →</button>
+      <button class="modal-cancel" onclick="closePlayerSelectModal()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ═══ COACH PIN MODAL ═══ -->
+  <div id="coachPinModal" class="modal-overlay">
+    <div class="modal">
+      <h3>Coach Access</h3>
+      <p>Enter the 4-digit coach PIN to continue.</p>
+      <div class="pin-dots" id="pinDots">
+        <div class="pin-dot" id="dot0"></div>
+        <div class="pin-dot" id="dot1"></div>
+        <div class="pin-dot" id="dot2"></div>
+        <div class="pin-dot" id="dot3"></div>
+      </div>
+      <div class="pin-pad">
+        <button class="pin-btn" onclick="pinInput('1')">1</button>
+        <button class="pin-btn" onclick="pinInput('2')">2</button>
+        <button class="pin-btn" onclick="pinInput('3')">3</button>
+        <button class="pin-btn" onclick="pinInput('4')">4</button>
+        <button class="pin-btn" onclick="pinInput('5')">5</button>
+        <button class="pin-btn" onclick="pinInput('6')">6</button>
+        <button class="pin-btn" onclick="pinInput('7')">7</button>
+        <button class="pin-btn" onclick="pinInput('8')">8</button>
+        <button class="pin-btn" onclick="pinInput('9')">9</button>
+        <button class="pin-btn del" onclick="pinDel()">⌫</button>
+        <button class="pin-btn" onclick="pinInput('0')">0</button>
+        <button class="pin-btn confirm" onclick="pinConfirm()">ENTER</button>
+      </div>
+      <div class="pin-error" id="pinError"></div>
+      <button class="modal-cancel" onclick="closePinModal()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ═══ PLAYER SCREEN ═══ -->
+  <div id="screenPlayer" class="screen" style="flex-direction:column;">
+    <div class="tabs" id="playerTabs">
+      <div class="tab active" data-tab="p-games">Matches</div>
+      <div class="tab" data-tab="p-squad">Squad</div>
+    </div>
+    <div class="content">
+
+      <!-- Player: Games tab -->
+      <div id="p-games" class="tab-content active">
+        <div class="sec-header">
+          <div>
+            <div class="sec-title">Upcoming Matches</div>
+            <div class="sec-sub" id="playerGreeting">Hello, Player</div>
+          </div>
+        </div>
+        <div id="playerGamesList"></div>
+      </div>
+
+      <!-- Player: Squad tab -->
+      <div id="p-squad" class="tab-content">
+        <div class="sec-header">
+          <div class="sec-title">The Squad</div>
+        </div>
+        <div id="playerSquadList" class="player-list"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ PLAYER GAME DETAIL (overlay within player screen) ═══ -->
+  <div id="screenPlayerDetail" class="screen" style="flex-direction:column;">
+    <div class="content" style="padding-top:20px">
+      <button class="back-btn" onclick="backToPlayerGames()">← Back to Matches</button>
+      <div id="playerDetailContent"></div>
+    </div>
+  </div>
+
+  <!-- ═══ COACH SCREEN ═══ -->
+  <div id="screenCoach" class="screen" style="flex-direction:column;">
+    <div class="tabs" id="coachTabs">
+      <div class="tab active" data-tab="c-games">Games</div>
+      <div class="tab" data-tab="c-players">Players</div>
+      <div class="tab" data-tab="c-attendance">Attendance</div>
+    </div>
+    <div class="content">
+
+      <!-- Coach: Games tab -->
+      <div id="c-games" class="tab-content active">
+        <div class="sec-header">
+          <div class="sec-title">Manage Games</div>
+        </div>
+        <div class="form-card">
+          <div class="form-card-title">➕ Add New Game</div>
+          <div class="form-group">
+            <label>Opponent / Match Title</label>
+            <input type="text" id="gameOpponent" placeholder="e.g. FC Rivals">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="gameDate">
+            </div>
+            <div class="form-group">
+              <label>Time</label>
+              <input type="time" id="gameTime">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Venue</label>
+              <input type="text" id="gameVenue" placeholder="e.g. City Stadium">
+            </div>
+            <div class="form-group">
+              <label>Type</label>
+              <select id="gameType">
+                <option>League</option>
+                <option>Cup</option>
+                <option>Friendly</option>
+                <option>Training</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Appoint Host(s)</label>
+            <div class="host-selector" id="hostSelector"></div>
+          </div>
+          <button class="btn btn-gold" onclick="addGame()">Add Game</button>
+        </div>
+
+        <div class="sec-header" style="margin-top:4px">
+          <div class="sec-title">All Games</div>
+        </div>
+        <div id="coachGamesList"></div>
+      </div>
+
+      <!-- Coach: Players tab -->
+      <div id="c-players" class="tab-content">
+        <div class="sec-header">
+          <div class="sec-title">Squad Management</div>
+        </div>
+        <div class="form-card">
+          <div class="form-card-title">➕ Add Player</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Full Name</label>
+              <input type="text" id="playerName" placeholder="John Smith">
+            </div>
+            <div class="form-group">
+              <label>Position</label>
+              <select id="playerPosition">
+                <option>Goalkeeper</option>
+                <option>Defender</option>
+                <option>Midfielder</option>
+                <option>Forward</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Jersey #</label>
+              <input type="number" id="playerNumber" placeholder="10" min="1" max="99">
+            </div>
+            <div class="form-group">
+              <label>Phone (optional)</label>
+              <input type="text" id="playerPhone" placeholder="+31 6...">
+            </div>
+          </div>
+          <button class="btn btn-gold" onclick="addPlayer()">Add to Squad</button>
+        </div>
+
+        <div class="sec-header" style="margin-top:4px">
+          <div class="sec-title">Current Squad</div>
+        </div>
+        <div id="coachPlayerList" class="player-list"></div>
+      </div>
+
+      <!-- Coach: Attendance tab -->
+      <div id="c-attendance" class="tab-content">
+        <div class="sec-header">
+          <div class="sec-title">Attendance Overview</div>
+        </div>
+        <div id="attendanceOverview"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ COACH GAME DETAIL ═══ -->
+  <div id="screenCoachDetail" class="screen" style="flex-direction:column;">
+    <div class="content" style="padding-top:20px">
+      <button class="back-btn" onclick="backToCoachGames()">← Back to Games</button>
+      <div id="coachDetailContent"></div>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════
+//  STATE  (shared via localStorage)
+// ═══════════════════════════════
+const STORE_KEY = 'squadsync_v1';
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e){}
+  return {
+    players: [
+      { id:'p1', name:'Jordi Bakker', position:'Goalkeeper', number:1, phone:'' },
+      { id:'p2', name:'Marco de Vries', position:'Defender', number:4, phone:'' },
+      { id:'p3', name:'Sander Mulder', position:'Defender', number:5, phone:'' },
+      { id:'p4', name:'Tom Janssen', position:'Midfielder', number:8, phone:'' },
+      { id:'p5', name:'Lukas Smit', position:'Midfielder', number:10, phone:'' },
+      { id:'p6', name:'Daan Visser', position:'Forward', number:9, phone:'' },
+    ],
+    games: [
+      { id:'g1', opponent:'FC Titans', date:'2026-03-21', time:'14:00', venue:'City Stadium', type:'League', hostIds:['p4'], attendance:{} },
+      { id:'g2', opponent:'Red Eagles', date:'2026-03-28', time:'10:30', venue:'Sports Park Noord', type:'Cup', hostIds:['p2'], attendance:{} },
+    ],
+    coachPin: '1234'
+  };
+}
+
+function saveState() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
+let state = loadState();
+
+// ═══════════════════════════════
+//  CURRENT SESSION
+// ═══════════════════════════════
+let currentMode = 'landing';  // landing | player | coach
+let currentPlayerId = null;
+let currentGameId = null;
+let pinBuffer = '';
+
+// ═══════════════════════════════
+//  SCREENS
+// ═══════════════════════════════
+const screens = ['screenLanding','screenPlayer','screenPlayerDetail','screenCoach','screenCoachDetail'];
+
+function showScreen(id) {
+  screens.forEach(s => {
+    document.getElementById(s).classList.remove('active');
+  });
+  document.getElementById(id).classList.add('active');
+}
+
+function showLanding() {
+  currentMode = 'landing';
+  currentPlayerId = null;
+  document.getElementById('modeBadge').className = 'mode-badge';
+  document.getElementById('modeBadge').textContent = '⚽ Switch Mode';
+  showScreen('screenLanding');
+}
+
+// ═══════════════════════════════
+//  PLAYER ENTRY
+// ═══════════════════════════════
+function enterPlayer() {
+  populatePlayerDropdown();
+  document.getElementById('playerSelectModal').classList.add('active');
+}
+
+function populatePlayerDropdown() {
+  const sel = document.getElementById('playerSelectDropdown');
+  sel.innerHTML = '<option value="">-- Select Player --</option>';
+  state.players.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `#${p.number} ${p.name} (${p.position})`;
+    sel.appendChild(opt);
+  });
+}
+
+function confirmPlayerSelect() {
+  const sel = document.getElementById('playerSelectDropdown');
+  if (!sel.value) { showToast('Please select your name', 'error'); return; }
+  currentPlayerId = sel.value;
+  closePlayerSelectModal();
+  const player = state.players.find(p => p.id === currentPlayerId);
+  document.getElementById('playerGreeting').textContent = `Hello, ${player.name} 👋`;
+  document.getElementById('modeBadge').className = 'mode-badge';
+  document.getElementById('modeBadge').textContent = '⚽ Player Mode';
+  currentMode = 'player';
+  renderPlayerGames();
+  renderPlayerSquad();
+  showScreen('screenPlayer');
+  initTabs('playerTabs', 'screenPlayer');
+}
+
+function closePlayerSelectModal() {
+  document.getElementById('playerSelectModal').classList.remove('active');
+}
+
+// ═══════════════════════════════
+//  COACH ENTRY
+// ═══════════════════════════════
+function enterCoach() {
+  pinBuffer = '';
+  updatePinDots();
+  document.getElementById('pinError').textContent = '';
+  document.getElementById('coachPinModal').classList.add('active');
+}
+
+function closePinModal() { document.getElementById('coachPinModal').classList.remove('active'); }
+
+function pinInput(d) {
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += d;
+  updatePinDots();
+}
+function pinDel() { pinBuffer = pinBuffer.slice(0,-1); updatePinDots(); }
+function updatePinDots() {
+  for(let i=0;i<4;i++) {
+    document.getElementById('dot'+i).className = 'pin-dot' + (i < pinBuffer.length ? ' filled' : '');
+  }
+}
+function pinConfirm() {
+  if (pinBuffer === state.coachPin) {
+    closePinModal();
+    document.getElementById('modeBadge').className = 'mode-badge coach';
+    document.getElementById('modeBadge').textContent = '📋 Coach Mode';
+    currentMode = 'coach';
+    renderCoachGames();
+    renderCoachPlayers();
+    renderAttendanceOverview();
+    renderHostSelector();
+    showScreen('screenCoach');
+    initTabs('coachTabs', 'screenCoach');
+  } else {
+    document.getElementById('pinError').textContent = 'Incorrect PIN. Try again.';
+    pinBuffer = '';
+    updatePinDots();
+    setTimeout(() => { document.getElementById('pinError').textContent = ''; }, 2000);
+  }
+}
+
+// ═══════════════════════════════
+//  TABS
+// ═══════════════════════════════
+function initTabs(tabContainerId, screenId) {
+  const container = document.getElementById(tabContainerId);
+  const tabs = container.querySelectorAll('.tab');
+  tabs.forEach(t => {
+    t.onclick = () => {
+      tabs.forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      const tabId = t.dataset.tab;
+      const screen = document.getElementById(screenId);
+      screen.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+    };
+  });
+}
+
+// ═══════════════════════════════
+//  HELPERS
+// ═══════════════════════════════
+function uid() { return '_'+Math.random().toString(36).slice(2,9); }
+
+function fmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d+'T00:00:00');
+  return dt.toLocaleDateString('en-NL',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+}
+
+function fmtTime(t) { return t || '—'; }
+
+function initials(name) {
+  return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+}
+
+function attStats(game) {
+  const players = state.players;
+  let inCount=0, outCount=0, pending=0;
+  players.forEach(p => {
+    const a = (game.attendance||{})[p.id];
+    if (a==='in') inCount++;
+    else if (a==='out') outCount++;
+    else pending++;
+  });
+  return { inCount, outCount, pending, total: players.length };
+}
+
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.className = '', 2800);
+}
+
+// ═══════════════════════════════
+//  PLAYER SCREEN: GAMES
+// ═══════════════════════════════
+function renderPlayerGames() {
+  const el = document.getElementById('playerGamesList');
+  const sorted = [...state.games].sort((a,b) => new Date(a.date)-new Date(b.date));
+  if (!sorted.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📅</div><p>No games scheduled yet.</p></div>`;
+    return;
+  }
+  el.innerHTML = sorted.map(g => {
+    const myStatus = (g.attendance||{})[currentPlayerId] || 'pending';
+    const hosts = (g.hostIds||[]).map(hid => {
+      const pl = state.players.find(p=>p.id===hid);
+      return pl ? pl.name.split(' ')[0] : '';
+    }).filter(Boolean).join(', ');
+    const s = attStats(g);
+    const pct = s.total ? Math.round(s.inCount/s.total*100) : 0;
+    const pillClass = myStatus==='in'?'status-in':myStatus==='out'?'status-out':'status-pending';
+    const pillText = myStatus==='in'?'✓ IN':myStatus==='out'?'✗ OUT':'? PENDING';
+    return `
+    <div class="game-card" onclick="openPlayerGameDetail('${g.id}')">
+      <div class="game-date-badge">📅 ${fmtDate(g.date)}</div>
+      <div class="game-title">vs ${g.opponent}</div>
+      <div class="game-info">
+        <span class="game-info-item">🕐 ${fmtTime(g.time)}</span>
+        <span class="game-info-item">📍 ${g.venue||'TBD'}</span>
+        <span class="game-info-item">🏆 ${g.type||'Match'}</span>
+        ${hosts ? `<span class="game-info-item">👑 Host: ${hosts}</span>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px">
+        <div class="attendance-bar" style="flex:1;margin-right:12px">
+          <div class="att-label"><span>Attendance</span><span>${s.inCount}/${s.total}</span></div>
+          <div class="att-track"><div class="att-fill" style="width:${pct}%"></div></div>
+        </div>
+        <span class="status-pill ${pillClass}">${pillText}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openPlayerGameDetail(gameId) {
+  currentGameId = gameId;
+  renderPlayerGameDetail();
+  showScreen('screenPlayerDetail');
+}
+
+function backToPlayerGames() {
+  showScreen('screenPlayer');
+  // re-activate games tab
+  const tabs = document.querySelectorAll('#playerTabs .tab');
+  tabs.forEach(t => t.classList.remove('active'));
+  tabs[0].classList.add('active');
+  document.querySelectorAll('#screenPlayer .tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('p-games').classList.add('active');
+  renderPlayerGames();
+}
+
+function renderPlayerGameDetail() {
+  const g = state.games.find(x=>x.id===currentGameId);
+  if (!g) return;
+  const myStatus = (g.attendance||{})[currentPlayerId] || 'pending';
+  const s = attStats(g);
+  const hosts = (g.hostIds||[]).map(hid => {
+    const pl = state.players.find(p=>p.id===hid);
+    return pl ? pl.name : '';
+  }).filter(Boolean);
+
+  const playerRows = state.players.map(p => {
+    const a = (g.attendance||{})[p.id] || 'pending';
+    const isHost = (g.hostIds||[]).includes(p.id);
+    const pillCls = a==='in'?'status-in':a==='out'?'status-out':'status-pending';
+    const pillTxt = a==='in'?'IN':a==='out'?'OUT':'?';
+    return `
+    <div class="player-item">
+      <div class="player-avatar">${initials(p.name)}</div>
+      <div class="player-info">
+        <div class="player-name">${isHost?'👑 ':''} ${p.name}</div>
+        <div class="player-pos">#${p.number} · ${p.position}</div>
+      </div>
+      <div class="player-status"><span class="status-pill ${pillCls}">${pillTxt}</span></div>
+    </div>`;
+  }).join('');
+
+  const selIn  = myStatus==='in'   ? ' selected':'';
+  const selOut = myStatus==='out'  ? ' selected':'';
+  const selMaybe = myStatus==='maybe'?' selected':'';
+
+  document.getElementById('playerDetailContent').innerHTML = `
+    <div class="game-detail-header">
+      <div class="game-date-badge">📅 ${fmtDate(g.date)}</div>
+      <div class="game-detail-title">vs ${g.opponent}</div>
+      <div class="game-detail-meta">
+        <span class="gdm-item">🕐 ${fmtTime(g.time)}</span>
+        <span class="gdm-item">📍 ${g.venue||'TBD'}</span>
+        <span class="gdm-item">🏆 ${g.type}</span>
+        ${hosts.length ? `<span class="gdm-item">👑 ${hosts.join(', ')}</span>` : ''}
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-num" style="color:#4fc87a">${s.inCount}</div><div class="stat-lbl">Coming</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:#e05c4b">${s.outCount}</div><div class="stat-lbl">Out</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:#f0a050">${s.pending}</div><div class="stat-lbl">Pending</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:22px">
+      <div class="card-title" style="color:var(--gold);font-family:'Bebas Neue',sans-serif;letter-spacing:1.5px;font-size:1.1rem">Your Availability</div>
+      <div class="card-meta">Let your team know if you're coming.</div>
+      <div class="avail-btns">
+        <button class="avail-btn in${selIn}" onclick="setAttendance('in')">✓ I'm IN</button>
+        <button class="avail-btn out${selOut}" onclick="setAttendance('out')">✗ I'm OUT</button>
+        <button class="avail-btn maybe${selMaybe}" onclick="setAttendance('maybe')">? Maybe</button>
+      </div>
+    </div>
+
+    <div class="sec-header"><div class="sec-title">Squad Availability</div></div>
+    <div class="player-list">${playerRows}</div>
+  `;
+}
+
+function setAttendance(status) {
+  const g = state.games.find(x=>x.id===currentGameId);
+  if (!g) return;
+  if (!g.attendance) g.attendance = {};
+  g.attendance[currentPlayerId] = status;
+  saveState();
+  renderPlayerGameDetail();
+  showToast(status==='in'?'✓ Marked as IN!':status==='out'?'✗ Marked as OUT':'? Marked as Maybe', 'success');
+}
+
+// ═══════════════════════════════
+//  PLAYER SCREEN: SQUAD
+// ═══════════════════════════════
+function renderPlayerSquad() {
+  const el = document.getElementById('playerSquadList');
+  if (!state.players.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">👥</div><p>No players in squad yet.</p></div>`;
+    return;
+  }
+  el.innerHTML = state.players.map(p => `
+    <div class="player-item">
+      <div class="player-avatar">${initials(p.name)}</div>
+      <div class="player-info">
+        <div class="player-name">${p.name} ${p.id===currentPlayerId?'<span style="font-size:0.7rem;color:var(--gold)">(You)</span>':''}</div>
+        <div class="player-pos">#${p.number} · ${p.position}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════
+//  COACH: PLAYERS
+// ═══════════════════════════════
+function addPlayer() {
+  const name = document.getElementById('playerName').value.trim();
+  const position = document.getElementById('playerPosition').value;
+  const number = document.getElementById('playerNumber').value.trim();
+  const phone = document.getElementById('playerPhone').value.trim();
+  if (!name) { showToast('Enter player name', 'error'); return; }
+  if (!number) { showToast('Enter jersey number', 'error'); return; }
+  if (state.players.find(p=>p.number==number)) { showToast('Jersey # already taken', 'error'); return; }
+  state.players.push({ id: uid(), name, position, number, phone });
+  saveState();
+  document.getElementById('playerName').value='';
+  document.getElementById('playerNumber').value='';
+  document.getElementById('playerPhone').value='';
+  renderCoachPlayers();
+  renderHostSelector();
+  renderAttendanceOverview();
+  showToast(`${name} added to squad!`, 'success');
+}
+
+function removePlayer(id) {
+  state.players = state.players.filter(p=>p.id!==id);
+  // remove from game host lists
+  state.games.forEach(g => { g.hostIds = (g.hostIds||[]).filter(h=>h!==id); });
+  saveState();
+  renderCoachPlayers();
+  renderHostSelector();
+  renderAttendanceOverview();
+  renderCoachGames();
+  showToast('Player removed', 'info');
+}
+
+function renderCoachPlayers() {
+  const el = document.getElementById('coachPlayerList');
+  if (!state.players.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">👥</div><p>No players yet. Add some above.</p></div>`;
+    return;
+  }
+  el.innerHTML = state.players.map(p => `
+    <div class="player-item">
+      <div class="player-avatar">${initials(p.name)}</div>
+      <div class="player-info">
+        <div class="player-name">${p.name}</div>
+        <div class="player-pos">#${p.number} · ${p.position}${p.phone?` · ${p.phone}`:''}</div>
+      </div>
+      <div class="player-status">
+        <button class="btn btn-danger btn-sm" onclick="removePlayer('${p.id}')">Remove</button>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════
+//  COACH: GAMES
+// ═══════════════════════════════
+function renderHostSelector() {
+  const el = document.getElementById('hostSelector');
+  if (!el) return;
+  const selected = Array.from(el.querySelectorAll('.host-chip.selected')).map(c=>c.dataset.pid);
+  el.innerHTML = state.players.map(p => {
+    const isSel = selected.includes(p.id);
+    return `<span class="host-chip${isSel?' selected':''}" data-pid="${p.id}" onclick="toggleHost(this,'${p.id}')">${p.name.split(' ')[0]} #${p.number}</span>`;
+  }).join('');
+}
+
+function toggleHost(el, pid) {
+  el.classList.toggle('selected');
+}
+
+function addGame() {
+  const opponent = document.getElementById('gameOpponent').value.trim();
+  const date = document.getElementById('gameDate').value;
+  const time = document.getElementById('gameTime').value;
+  const venue = document.getElementById('gameVenue').value.trim();
+  const type = document.getElementById('gameType').value;
+  if (!opponent) { showToast('Enter opponent/title', 'error'); return; }
+  if (!date) { showToast('Select a date', 'error'); return; }
+
+  const hostIds = Array.from(document.querySelectorAll('#hostSelector .host-chip.selected')).map(c=>c.dataset.pid);
+
+  state.games.push({ id: uid(), opponent, date, time, venue, type, hostIds, attendance:{} });
+  saveState();
+
+  document.getElementById('gameOpponent').value='';
+  document.getElementById('gameDate').value='';
+  document.getElementById('gameTime').value='';
+  document.getElementById('gameVenue').value='';
+  renderHostSelector();
+  renderCoachGames();
+  renderAttendanceOverview();
+  showToast(`Game vs ${opponent} added!`, 'success');
+}
+
+function removeGame(id) {
+  state.games = state.games.filter(g=>g.id!==id);
+  saveState();
+  renderCoachGames();
+  renderAttendanceOverview();
+  showToast('Game removed', 'info');
+}
+
+function renderCoachGames() {
+  const el = document.getElementById('coachGamesList');
+  const sorted = [...state.games].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  if (!sorted.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📅</div><p>No games yet. Add one above.</p></div>`;
+    return;
+  }
+  el.innerHTML = sorted.map(g => {
+    const s = attStats(g);
+    const pct = s.total ? Math.round(s.inCount/s.total*100) : 0;
+    const hosts = (g.hostIds||[]).map(hid=>{const pl=state.players.find(p=>p.id===hid);return pl?pl.name.split(' ')[0]:'';}).filter(Boolean).join(', ');
+    return `
+    <div class="game-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+        <div style="flex:1">
+          <div class="game-date-badge">📅 ${fmtDate(g.date)} ${g.time?'· '+fmtTime(g.time):''}</div>
+          <div class="game-title">vs ${g.opponent}</div>
+          <div class="game-info">
+            <span class="game-info-item">📍 ${g.venue||'TBD'}</span>
+            <span class="game-info-item">🏆 ${g.type}</span>
+            ${hosts?`<span class="game-info-item">👑 ${hosts}</span>`:''}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;align-items:flex-start">
+          <button class="btn btn-outline btn-sm" onclick="openCoachGameDetail('${g.id}')">Details</button>
+          <button class="btn btn-danger btn-sm" onclick="removeGame('${g.id}')">✕</button>
+        </div>
+      </div>
+      <div class="attendance-bar" style="margin-top:14px">
+        <div class="att-label"><span>Attendance</span><span>${s.inCount}/${s.total} confirmed</span></div>
+        <div class="att-track"><div class="att-fill" style="width:${pct}%"></div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openCoachGameDetail(gameId) {
+  currentGameId = gameId;
+  renderCoachGameDetail();
+  showScreen('screenCoachDetail');
+}
+
+function backToCoachGames() {
+  showScreen('screenCoach');
+  const tabs = document.querySelectorAll('#coachTabs .tab');
+  tabs.forEach(t=>t.classList.remove('active'));
+  tabs[0].classList.add('active');
+  document.querySelectorAll('#screenCoach .tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('c-games').classList.add('active');
+  renderCoachGames();
+}
+
+function renderCoachGameDetail() {
+  const g = state.games.find(x=>x.id===currentGameId);
+  if (!g) return;
+  const s = attStats(g);
+  const hosts = (g.hostIds||[]).map(hid=>{const pl=state.players.find(p=>p.id===hid);return pl?pl.name:'';}).filter(Boolean);
+
+  const playerRows = state.players.map(p => {
+    const a = (g.attendance||{})[p.id] || 'pending';
+    const isHost = (g.hostIds||[]).includes(p.id);
+    const pillCls = a==='in'?'status-in':a==='out'?'status-out':'status-pending';
+    const pillTxt = a==='in'?'IN':a==='out'?'OUT':'?';
+    return `
+    <div class="player-item">
+      <div class="player-avatar">${initials(p.name)}</div>
+      <div class="player-info">
+        <div class="player-name">${isHost?'👑 ':''} ${p.name}</div>
+        <div class="player-pos">#${p.number} · ${p.position}</div>
+      </div>
+      <div class="player-status" style="display:flex;gap:6px;align-items:center">
+        <span class="status-pill ${pillCls}">${pillTxt}</span>
+        <select style="width:auto;padding:5px 8px;font-size:0.78rem" onchange="coachSetAttendance('${g.id}','${p.id}',this.value)">
+          <option value="pending" ${a==='pending'?'selected':''}>Pending</option>
+          <option value="in" ${a==='in'?'selected':''}>IN</option>
+          <option value="out" ${a==='out'?'selected':''}>OUT</option>
+          <option value="maybe" ${a==='maybe'?'selected':''}>Maybe</option>
+        </select>
+      </div>
+    </div>`;
+  }).join('');
+
+  // host edit
+  const hostChips = state.players.map(p => {
+    const isSel = (g.hostIds||[]).includes(p.id);
+    return `<span class="host-chip${isSel?' selected':''}" data-pid="${p.id}" onclick="toggleDetailHost(this,'${g.id}','${p.id}')">${p.name.split(' ')[0]} #${p.number}</span>`;
+  }).join('');
+
+  document.getElementById('coachDetailContent').innerHTML = `
+    <div class="game-detail-header">
+      <div class="game-date-badge">📅 ${fmtDate(g.date)} · ${fmtTime(g.time)}</div>
+      <div class="game-detail-title">vs ${g.opponent}</div>
+      <div class="game-detail-meta">
+        <span class="gdm-item">📍 ${g.venue||'TBD'}</span>
+        <span class="gdm-item">🏆 ${g.type}</span>
+        ${hosts.length?`<span class="gdm-item">👑 ${hosts.join(', ')}</span>`:''}
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-num" style="color:#4fc87a">${s.inCount}</div><div class="stat-lbl">Coming</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:#e05c4b">${s.outCount}</div><div class="stat-lbl">Out</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:#f0a050">${s.pending}</div><div class="stat-lbl">Pending</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:22px">
+      <div class="card-title" style="color:var(--gold);font-family:'Bebas Neue',sans-serif;letter-spacing:1.5px;font-size:1.05rem;margin-bottom:10px">👑 Game Host(s)</div>
+      <div class="host-selector">${hostChips}</div>
+    </div>
+
+    <div class="sec-header"><div class="sec-title">Player Availability</div></div>
+    <div class="player-list">${playerRows}</div>
+  `;
+}
+
+function toggleDetailHost(el, gameId, playerId) {
+  el.classList.toggle('selected');
+  const g = state.games.find(x=>x.id===gameId);
+  if (!g) return;
+  if (!g.hostIds) g.hostIds=[];
+  if (el.classList.contains('selected')) {
+    if (!g.hostIds.includes(playerId)) g.hostIds.push(playerId);
+  } else {
+    g.hostIds = g.hostIds.filter(h=>h!==playerId);
+  }
+  saveState();
+  showToast('Host updated', 'success');
+}
+
+function coachSetAttendance(gameId, playerId, status) {
+  const g = state.games.find(x=>x.id===gameId);
+  if (!g) return;
+  if (!g.attendance) g.attendance={};
+  g.attendance[playerId] = status;
+  saveState();
+  renderCoachGameDetail();
+  showToast('Attendance updated', 'success');
+}
+
+// ═══════════════════════════════
+//  COACH: ATTENDANCE OVERVIEW
+// ═══════════════════════════════
+function renderAttendanceOverview() {
+  const el = document.getElementById('attendanceOverview');
+  const sorted = [...state.games].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  if (!sorted.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📊</div><p>No games to show.</p></div>`;
+    return;
+  }
+  el.innerHTML = sorted.map(g => {
+    const s = attStats(g);
+    const pct = s.total ? Math.round(s.inCount/s.total*100) : 0;
+    const rows = state.players.map(p => {
+      const a = (g.attendance||{})[p.id]||'pending';
+      const dot = a==='in'?'#4fc87a':a==='out'?'#e05c4b':'#f0a050';
+      const sym = a==='in'?'✓':a==='out'?'✗':'?';
+      return `<span title="${p.name}: ${a}" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${dot}22;border:1px solid ${dot}66;color:${dot};font-size:0.78rem;font-weight:700;">${sym}</span>`;
+    }).join('');
+
+    return `
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-header">
+        <div>
+          <div class="game-date-badge" style="margin-bottom:4px">📅 ${fmtDate(g.date)}</div>
+          <div class="card-title">vs ${g.opponent}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;color:var(--gold)">${s.inCount}<span style="font-size:0.85rem;color:var(--white-dim)">/${s.total}</span></div>
+          <div style="font-size:0.7rem;color:var(--white-dim)">confirmed</div>
+        </div>
+      </div>
+      <div class="att-track" style="margin-top:10px">
+        <div class="att-fill" style="width:${pct}%"></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:12px">${rows}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════
+//  INIT
+// ═══════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  // Set default date to today
+  const today = new Date().toISOString().split('T')[0];
+  const gameDateInput = document.getElementById('gameDate');
+  if (gameDateInput) gameDateInput.value = today;
+});
+</script>
+</body>
+</html>
